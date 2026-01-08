@@ -261,6 +261,129 @@ plot_taxa_env <- function(df){
 }
 plot_taxa_env(regression_combined)
 
+####effect sizes
+regress <- function(cvddata, microbiome_table, confounders, group){
+  
+  microbes <- names(microbiome_table)
+  cvdrisks <- colnames(cvddata)
+  
+  df_lm_final <- data.frame()
+  
+  for (microbe in microbes){
+    for (cvdrisk in cvdrisks){
+      
+      # build the model
+      model <- lm(
+        cvddata[,cvdrisk] ~ microbiome_table[,microbe] +
+          confounders$age + confounders$sex + confounders$bmi
+      )
+      
+      summ <- summary(model)
+      coeffs <- summ$coefficients
+      
+      # unstandardised effect size
+      beta      <- coeffs[2, 1]
+      pvalue    <- coeffs[2, 4]
+      
+      # compute standardised beta:
+      # scale() converts to z-scores
+      std_model <- lm(
+        scale(cvddata[,cvdrisk]) ~ scale(microbiome_table[,microbe]) +
+          scale(confounders$age) + confounders$sex + scale(confounders$bmi)
+      )
+      std_beta <- summary(std_model)$coefficients[2,1]
+      
+      # save results
+      tmp <- data.frame(
+        microbe      = microbe,
+        cvdrisk      = cvdrisk,
+        pvalue       = pvalue,
+        beta         = beta,
+        beta_std     = std_beta,
+        group        = group
+      )
+      
+      df_lm_final <- rbind(df_lm_final, tmp)
+    }
+  }
+  
+  return(df_lm_final)
+}
+regression_infected <- regress(infected_Urban_cvddata,
+                               infected_urban_microbiome_table,
+                               infected_Urban_confounders,
+                               group='Infected')
+
+regression_uninfected <- regress(uninfected_Urban_cvddata,
+                                 uninfected_urban_microbiome_table,
+                                 uninfected_urban_confounders,
+                                 group='UnInfected')
+
+regression_combined_urban <- rbind(regression_infected, regression_uninfected)
+#####
+#### effect sizes with 95% CIs
+regress <- function(cvddata, microbiome_table, confounders, group){
+  
+  microbes <- names(microbiome_table)
+  cvdrisks <- colnames(cvddata)
+  
+  df_lm_final <- data.frame()
+  
+  for (microbe in microbes){
+    for (cvdrisk in cvdrisks){
+      
+      # Unstandardised model
+      model <- lm(
+        cvddata[,cvdrisk] ~ microbiome_table[,microbe] +
+          confounders$age + confounders$sex + confounders$bmi
+      )
+      
+      summ <- summary(model)
+      coeffs <- summ$coefficients
+      ci     <- confint(model)
+      
+      beta      <- coeffs[2, 1]
+      pvalue    <- coeffs[2, 4]
+      beta_lci  <- ci[2, 1]
+      beta_uci  <- ci[2, 2]
+      
+      # Standardised model
+      std_model <- lm(
+        scale(cvddata[,cvdrisk]) ~ scale(microbiome_table[,microbe]) +
+          scale(confounders$age) + confounders$sex + scale(confounders$bmi)
+      )
+      
+      std_summ <- summary(std_model)
+      std_ci   <- confint(std_model)
+      
+      beta_std     <- std_summ$coefficients[2, 1]
+      beta_std_lci <- std_ci[2, 1]
+      beta_std_uci <- std_ci[2, 2]
+      
+      # Save results
+      tmp <- data.frame(
+        microbe        = microbe,
+        cvdrisk        = cvdrisk,
+        beta           = beta,
+        beta_lci       = beta_lci,
+        beta_uci       = beta_uci,
+        beta_std       = beta_std,
+        beta_std_lci   = beta_std_lci,
+        beta_std_uci   = beta_std_uci,
+        pvalue         = pvalue,
+        group          = group
+      )
+      
+      df_lm_final <- rbind(df_lm_final, tmp)
+    }
+  }
+  
+  return(df_lm_final)
+}
+
+
+
+
 ### Panel D
 
 require(ggalluvial)
@@ -276,7 +399,7 @@ dds<-DESeq(dds, test="Wald", fitType="local")
 res1<-results(dds, cooksCutoff = FALSE)
 #alpha<-0.05
 #sigtab1<-res1[which(res1$padj < alpha), ]
-#sigtab1<-sigtab1[which(abs(sigtab1$log2FoldChange)>1), ]
+sigtab1<-sigtab1[which(abs(sigtab1$log2FoldChange)>1), ]
 sigtab1<-as.data.frame(res1)
 dim(sigtab1)
 #create a waterfall plot for differentially abundant taxa
@@ -388,4 +511,52 @@ p<-ggplot(neg_med,
         legend.title = element_text(size = 14))
 p$labels$fill<-"Taxa"
 p
+
+###########get effect sizes for panel A
+regress <- function(cvddata, microbiome_table, confounders, group){
+  
+  microbes <- names(microbiome_table)
+  cvdrisks <- colnames(cvddata)
+  
+  df_lm_final <- data.frame()
+  
+  for (microbe in microbes){
+    for (cvdrisk in cvdrisks){
+      
+      model <- lm(cvddata[,cvdrisk] ~ microbiome_table[,microbe] +
+                    confounders$age + confounders$sex +
+                    confounders$bmi + confounders$category)
+      
+      summ_model <- summary(model)
+      coeffis <- summ_model$coefficients
+      
+      # extract p and unstandardised effect
+      pvalue_ <- coeffis[2,4]
+      coeffi_ <- coeffis[2,1]
+      
+      # compute standardised effect size
+      # scale outcome + predictor
+      model_std <- lm(
+        scale(cvddata[,cvdrisk]) ~ scale(microbiome_table[,microbe]) +
+          scale(confounders$age) + confounders$sex +
+          scale(confounders$bmi) + confounders$category
+      )
+      std_coeff <- summary(model_std)$coefficients[2,1]
+      
+      # store results
+      tmp <- data.frame(
+        microbe = microbe,
+        cvdrisk = cvdrisk,
+        pvalue = pvalue_,
+        beta = coeffi_,
+        beta_std = std_coeff,
+        group = group
+      )
+      
+      df_lm_final <- rbind(df_lm_final, tmp)
+    }
+  }
+  
+  return(df_lm_final)
+}
 
