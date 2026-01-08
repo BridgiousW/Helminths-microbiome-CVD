@@ -34,6 +34,15 @@ meta_diversity <- merge.data.frame(meta_data_2, diversity, by='sample')
 kruskal.test(observed_features ~ case_2, data = meta_diversity)
 kruskal.test(shannon_entropy ~ case_2, data = meta_diversity)
 
+div_pos <- meta_diversity[meta_diversity$case_2=='Positive',]
+div_neg <- meta_diversity[meta_diversity$case_2=='Negative',]
+
+quantile(div_pos$observed_features)
+quantile(div_neg$observed_features)
+
+quantile(div_pos$shannon_entropy)
+quantile(div_neg$shannon_entropy)
+
 observed.diversity$measure <-"Observed features"
 names(observed.diversity)<-c('value', 'sample', 'measure')
 shannon.diversity$measure <- "Shannon entropy"
@@ -43,6 +52,8 @@ diversity <- rbind(observed.diversity, shannon.diversity)
 diversity$case <- meta_data_2$case_2[match(diversity$sample, meta_data_2$sample)]
 diversity$case <- factor(diversity$case, levels = c('Negative', 'Positive'), labels = c('uninfected', 'infected'))
 diversity$measure <- factor(diversity$measure, levels = c('Shannon entropy', 'Observed features'))
+
+s
 
 ggplot(data = diversity, aes(x=case, y=value, fill=case))+
   geom_boxplot() + facet_wrap(~measure, scale='free')+
@@ -147,3 +158,14 @@ se_urban
 res_urban_infected <- lefser(se_urban, groupCol = "Urban_infected", lda.threshold=2.0)
 res_urban_infected$Names<-tax$Genus[match(res_urban_infected$Names, rownames(tax))]
 lefserPlot(res_urban_infected)
+####
+merged_data <- merge(
+  subset_data,
+  meta_data,
+  by = "slabno",
+  all = FALSE   # keeps only matching slabno in both
+)
+
+# Check result
+dim(merged_data)
+head(merged_data)
